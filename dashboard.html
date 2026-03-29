@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}SignalX - Investment Alerts Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-800 mb-2">📊 Investment Alerts Dashboard</h1>
+        <p class="text-gray-600">Real-time opportunities and chart pattern analysis</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+            <div class="text-blue-900 text-sm font-semibold">Chart Patterns</div>
+            <div class="text-3xl font-bold text-blue-600">{{ alert_stats.pattern }}</div>
+            <div class="text-xs text-blue-600">Last 30 days</div>
+        </div>
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+            <div class="text-green-900 text-sm font-semibold">High Scores</div>
+            <div class="text-3xl font-bold text-green-600">{{ alert_stats.opportunity_score }}</div>
+            <div class="text-xs text-green-600">Opportunity detected</div>
+        </div>
+        <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+            <div class="text-purple-900 text-sm font-semibold">Trend Changes</div>
+            <div class="text-3xl font-bold text-purple-600">{{ alert_stats.trend_change }}</div>
+            <div class="text-xs text-purple-600">Direction shifts</div>
+        </div>
+        <div class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded">
+            <div class="text-orange-900 text-sm font-semibold">Unread Alerts</div>
+            <div class="text-3xl font-bold text-orange-600">{{ unread_alerts|length }}</div>
+            <button onclick="clearAllAlerts()" class="mt-2 text-xs text-orange-600 hover:text-orange-800 underline">
+                Mark all read
+            </button>
+        </div>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
+        <div class="lg:col-span-2">
+            <!-- Unread Alerts Section -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="bg-gradient-to-r from-signalx to-signalx-dark p-6 text-white rounded-t-lg">
+                    <h2 class="text-2xl font-bold">🔔 Unread Alerts</h2>
+                    <p class="text-gray-100 text-sm mt-1">{{ unread_alerts|length }} new opportunities</p>
+                </div>
+                
+                <div class="p-6">
+                    {% if unread_alerts %}
+                        <div class="space-y-4">
+                            {% for alert in unread_alerts %}
+                                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition" id="alert-{{ alert.id }}">
+                                    <!-- Alert Header -->
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div>
+                                            <a href="/company/{{ alert.company_id }}" class="text-lg font-semibold text-signalx hover:underline">
+                                                {{ alert.company.company_name or alert.company_id }} ({{ alert.company_id }})
+                                            </a>
+                                            <div class="flex gap-2 mt-1">
+                                                {% if alert.alert_type == "pattern" %}
+                                                    <span class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                                        📈 Chart Pattern
+                                                    </span>
+                                                {% elif alert.alert_type == "opportunity_score" %}
+                                                    <span class="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                                                        ⭐ High Opportunity
+                                                    </span>
+                                                {% elif alert.alert_type == "trend_change" %}
+                                                    <span class="inline-block px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">
+                                                        🔄 Trend Change
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-sm text-gray-500">
+                                                {{ alert.created_at.strftime('%b %d, %H:%M') }}
+                                            </div>
+                                            <button data-alert-id="{{ alert.id }}" class="mark-alert-btn text-xs text-gray-500 hover:text-gray-700 mt-2 underline">
+                                                Mark read
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Alert Message -->
+                                    <p class="text-gray-700 mb-3">{{ alert.message }}</p>
+
+                                    <!-- Additional Details -->
+                                    {% if alert.details %}
+                                        <div class="bg-gray-50 rounded p-3 text-sm text-gray-600 mb-3">
+                                            {% if alert.details.patterns %}
+                                                <div class="mb-2">
+                                                    <strong>Patterns Found:</strong>
+                                                    <div class="ml-2">
+                                                        {% for pattern in alert.details.patterns %}
+                                                            <div>• {{ pattern.pattern_type }} ({{ pattern.signal }}, {{ (pattern.confidence * 100)|int }}% confidence)</div>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                            {% if alert.details.score %}
+                                                <div class="mb-2">
+                                                    <strong>Opportunity Score:</strong> {{ alert.details.score }}/100
+                                                </div>
+                                                <div class="w-full bg-gray-300 rounded-full h-2">
+                                                    <div class="bg-green-500 h-2 rounded-full" id="score-bar-{{ alert.id }}"></div>
+                                                </div>
+                                            {% endif %}
+                                            {% if alert.details.recommendation %}
+                                                <div class="mt-2">
+                                                    <strong>Recommendation:</strong> {{ alert.details.recommendation }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- Action Button -->
+                                    <a href="/company/{{ alert.company_id }}" class="inline-block px-4 py-2 bg-signalx text-white rounded text-sm font-semibold hover:bg-signalx-dark transition">
+                                        View Analysis →
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-12">
+                            <div class="text-4xl mb-2">✨</div>
+                            <p class="text-gray-500">All caught up! No new alerts.</p>
+                            <p class="text-sm text-gray-400 mt-2">Check back later for new opportunities.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="bg-gray-100 p-6 rounded-t-lg border-b">
+                    <h3 class="text-xl font-bold text-gray-800">📋 Recent Activity (Last 30 Days)</h3>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Company</th>
+                                <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Type</th>
+                                <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Message</th>
+                                <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            {% for alert in recent_alerts %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4">
+                                        <a href="/company/{{ alert.company_id }}" class="text-signalx hover:underline font-medium">
+                                            {{ alert.company.company_name or alert.company_id }}
+                                        </a>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        {% if alert.alert_type == "pattern" %}
+                                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">Pattern</span>
+                                        {% elif alert.alert_type == "opportunity_score" %}
+                                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Score</span>
+                                        {% elif alert.alert_type == "trend_change" %}
+                                            <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">Trend</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">{{ alert.message[:50] }}...</td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">{{ alert.created_at.strftime('%b %d') }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1">
+            <!-- How It Works -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">How It Works</h3>
+                <div class="space-y-3 text-sm text-gray-600">
+                    <div>
+                        <div class="font-semibold text-gray-800">📈 Chart Patterns</div>
+                        <p>Bullish formations like Morning Star, Engulfing, Triangles detected in real-time</p>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-800">⭐ Opportunity Scoring</div>
+                        <p>AI analyzes 5 factors: Valuation, Growth, Profitability, Health, Technical (0-100)</p>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-800">🔄 Trend Analysis</div>
+                        <p>Automatic detection of bullish/bearish trend changes</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Alerts -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Top Alert Types</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600">📈 Chart Patterns</span>
+                        <span class="font-bold text-signalx">{{ alert_stats.pattern }}</span>
+                    </div>
+                    {% set total = alert_stats.pattern + alert_stats.opportunity_score + alert_stats.trend_change or 1 %}
+                    <div class="w-full bg-gray-200 rounded-full h-1">
+                        <div class="bg-blue-500 h-1 rounded-full progress-bar" data-percentage="{% if total > 0 %}{{ (alert_stats.pattern / total) * 100|int }}{% else %}0{% endif %}"></div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-4">
+                        <span class="text-sm text-gray-600">⭐ Opportunity Scores</span>
+                        <span class="font-bold text-signalx">{{ alert_stats.opportunity_score }}</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1">
+                        <div class="bg-green-500 h-1 rounded-full progress-bar" data-percentage="{% if total > 0 %}{{ (alert_stats.opportunity_score / total) * 100|int }}{% else %}0{% endif %}"></div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-4">
+                        <span class="text-sm text-gray-600">🔄 Trend Changes</span>
+                        <span class="font-bold text-signalx">{{ alert_stats.trend_change }}</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1">
+                        <div class="bg-purple-500 h-1 rounded-full progress-bar" data-percentage="{% if total > 0 %}{{ (alert_stats.trend_change / total) * 100|int }}{% else %}0{% endif %}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize progress bars and buttons on page load
+window.addEventListener('load', function() {
+    // Set progress bar widths from data attributes
+    document.querySelectorAll('.progress-bar').forEach(bar => {
+        const percentage = bar.getAttribute('data-percentage');
+        if (percentage) {
+            bar.style.width = percentage + '%';
+        }
+    });
+    
+    // Set individual alert score bars
+    document.querySelectorAll('[id^="score-bar-"]').forEach(bar => {
+        const scoreValue = bar.parentElement.previousElementSibling.textContent.match(/\d+/);
+        if (scoreValue) {
+            bar.style.width = scoreValue[0] + '%';
+        }
+    });
+    
+    // Attach click handlers to mark-alert buttons
+    document.querySelectorAll('.mark-alert-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const alertId = this.getAttribute('data-alert-id');
+            markAlertRead(alertId);
+        });
+    });
+});
+
+function markAlertRead(alertId) {
+    fetch(`/api/alerts/${alertId}/read`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            // Remove the alert from view
+            document.getElementById(`alert-${alertId}`).style.opacity = '0.5';
+            setTimeout(() => location.reload(), 300);
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function clearAllAlerts() {
+    if (confirm('Mark all alerts as read?')) {
+        fetch('/api/alerts/clear-all', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => location.reload())
+            .catch(error => console.error('Error:', error));
+    }
+}
+
+// Auto-refresh every 60 seconds
+setTimeout(() => location.reload(), 60000);
+</script>
+
+<style>
+.navbar-signalx {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-signalx {
+    background-color: #667eea;
+}
+
+.bg-signalx-dark {
+    background-color: #764ba2;
+}
+
+.text-signalx {
+    color: #667eea;
+}
+</style>
+{% endblock %}
